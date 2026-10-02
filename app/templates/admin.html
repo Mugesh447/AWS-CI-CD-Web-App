@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Admin dashboard | AWS CI/CD</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style-webapp.css') }}">
+</head>
+<body class="settings-page">
+    <main class="admin-shell">
+        <header class="settings-header"><a class="logo" href="{{ url_for('home') }}"><span class="logo-mark">A</span><span>AWS CI/CD<span class="logo-dot">.</span></span></a><div class="admin-header-actions"><span class="admin-badge">ADMIN CONSOLE</span><a class="back-link" href="{{ url_for('home') }}">← Back to dashboard</a></div></header>
+        <section class="admin-heading"><div><p class="eyebrow">Workspace administration</p><h1>Team overview</h1><p>Manage the people who can access this deployment workspace.</p></div><button class="primary-button" id="refresh-users">↻ Refresh users</button></section>
+        <section class="admin-stats"><div><span>Total users</span><strong>{{ users|length }}</strong></div><div><span>Administrators</span><strong>{{ users|selectattr('role', 'equalto', 'admin')|list|length }}</strong></div><div><span>Developers</span><strong>{{ users|selectattr('role', 'equalto', 'developer')|list|length }}</strong></div><div><span>Workspace</span><strong>Active</strong></div></section>
+        <section class="panel user-panel"><div class="panel-heading"><div><h3>Workspace members</h3><p>Accounts and access roles</p></div><span class="running-pill"><span></span> Secure access</span></div><div class="table-wrap"><table><thead><tr><th>MEMBER</th><th>EMAIL</th><th>ROLE</th><th>JOINED</th><th>STATUS</th></tr></thead><tbody id="user-table">{% for user in users %}<tr><td><span class="person"><span class="mini-avatar {{ 'purple' if user['role'] == 'admin' else 'blue' }}">{{ user['name'][:2]|upper }}</span><span><strong>{{ user['name'] }}</strong><small>@{{ user['username'] }}</small></span></span></td><td>{{ user['email'] or 'Not added' }}</td><td><span class="role-label {{ user['role'] }}">{{ user['role']|capitalize }}</span></td><td>{{ user['created_at'][:10] }}</td><td><span class="status-label success"><i>✓</i> Active</span></td></tr>{% endfor %}</tbody></table></div></section>
+        <p class="admin-note">Passwords are securely hashed and are never visible in this console.</p>
+    </main>
+    <script>
+        document.querySelector('#refresh-users').addEventListener('click', () => window.location.reload());
+    </script>
+</body>
+</html>

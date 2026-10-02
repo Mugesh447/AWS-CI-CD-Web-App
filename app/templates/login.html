@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AWS CI/CD | Authentication</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style-webapp.css') }}">
+</head>
+<body class="login-page">
+    <main class="login-layout">
+        <section class="login-brand-panel">
+            <a class="logo" href="/"><span class="logo-mark">A</span><span>AWS CI/CD<span class="logo-dot">.</span></span></a>
+            <div class="login-quote"><p class="eyebrow">Deployment control center</p><h1>Ship with confidence.</h1><p>One clear view of your builds, services, and production releases.</p></div>
+            <div class="login-proof"><span>✓</span> Secure team workspace <span>✓</span> Live service health</div>
+        </section>
+        <section class="login-card-wrap">
+            <div class="login-card">
+                <div class="login-card-heading"><p class="eyebrow">AWS CI/CD Platform</p><h2 id="auth-title">{% if mode == 'register' %}Create your account{% else %}Sign in to your workspace{% endif %}</h2><p id="auth-description">{% if mode == 'register' %}Set up your developer profile for the deployment dashboard.{% else %}Continue to the AWS CI/CD deployment dashboard.{% endif %}</p></div>
+                <div class="auth-tabs" role="tablist"><button type="button" class="auth-tab {% if mode != 'register' %}active{% endif %}" data-mode="login" role="tab">Sign in</button><button type="button" class="auth-tab {% if mode == 'register' %}active{% endif %}" data-mode="register" role="tab">Create account</button></div>
+                {% if mode == 'register' %}<p class="login-helper">Create your account in just 4 quick steps: full name, email, username, and password.</p>{% endif %}
+                {% if registered %}<div class="login-success" role="status">Account created successfully. Please sign in.</div>{% endif %}
+                {% if error %}<div class="login-error" role="alert">{{ error }}</div>{% endif %}
+                <form id="auth-form" method="post" action="{% if mode == 'register' %}{{ url_for('register') }}{% else %}{{ url_for('login') }}{% endif %}">
+                    <div class="register-only" {% if mode != 'register' %}hidden{% endif %}>
+                        <label for="name">Full name</label><input id="name" name="name" type="text" placeholder="Enter your full name" autocomplete="name" {% if mode == 'register' %}required{% endif %}>
+                        <label for="email">Email address</label><input id="email" name="email" type="email" placeholder="you@example.com" autocomplete="email" {% if mode == 'register' %}required{% endif %}>
+                    </div>
+                    <label for="username">Username</label><input id="username" name="username" type="text" value="{{ registered_username }}" placeholder="{% if mode == 'register' %}Choose a username{% else %}Enter your username{% endif %}" autocomplete="username" required autofocus>
+                    <label for="password">Password</label><div class="password-field"><input id="password" name="password" type="password" placeholder="{% if mode == 'register' %}At least 6 characters{% else %}Enter your password{% endif %}" autocomplete="{% if mode == 'register' %}new-password{% else %}current-password{% endif %}" {% if mode == 'register' %}minlength="6"{% endif %} required><button type="button" id="toggle-password" aria-label="Show password"><span class="eye-icon" aria-hidden="true"></span></button></div>
+                    <div class="register-only" {% if mode != 'register' %}hidden{% endif %}><label for="confirm-password">Confirm password</label><input id="confirm-password" name="confirm_password" type="password" placeholder="Re-enter your password" autocomplete="new-password" minlength="6" {% if mode == 'register' %}required{% endif %}></div>
+                    <div class="login-options"><label class="remember"><input type="checkbox" name="remember"> <span>{% if mode == 'register' %}I agree to the workspace terms{% else %}Remember me{% endif %}</span></label><a href="#help">Need help?</a></div>
+                    <button class="primary-button login-submit" type="submit" id="auth-submit">{% if mode == 'register' %}Create account{% else %}Sign in{% endif %} <span>→</span></button>
+                </form>
+                <p class="account-link">{% if mode == 'register' %}Already have an account? <a href="{{ url_for('login') }}">Sign in</a>{% else %}Need a new account? <a href="{{ url_for('register') }}">Create account</a>{% endif %}</p>
+                <p class="login-note">Protected workspace · Session secured</p>
+            </div>
+        </section>
+    </main>
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

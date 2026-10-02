@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Profile settings | AWS CI/CD</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style-webapp.css') }}">
+</head>
+<body class="settings-page">
+    <main class="settings-shell">
+        <header class="settings-header"><a class="logo" href="{{ url_for('home') }}"><span class="logo-mark">A</span><span>AWS CI/CD<span class="logo-dot">.</span></span></a><a class="back-link" href="{{ url_for('home') }}">← Back to dashboard</a></header>
+        <section class="settings-layout">
+            <aside class="settings-intro"><p class="eyebrow">Account preferences</p><h1>Profile settings</h1><p>Keep your workspace identity and security details up to date.</p><div class="profile-preview"><span class="profile-large-avatar">MK</span><strong>{{ user['name'] }}</strong><span>{{ user['email'] }}</span><small>@{{ user['username'] }}</small></div></aside>
+            <form class="settings-card" method="post">
+                {% if saved %}<div class="login-success" role="status">Profile updated successfully.</div>{% endif %}
+                {% if error %}<div class="login-error" role="alert">{{ error }}</div>{% endif %}
+                <div class="settings-section"><h2>Personal information</h2><p>These details appear in your deployment workspace.</p><label for="settings-name">Full name</label><input id="settings-name" name="name" type="text" value="{{ user['name'] }}" required><label for="settings-email">Email address</label><input id="settings-email" name="email" type="email" value="{{ user['email'] }}" required></div>
+                <div class="settings-section"><h2>Change password</h2><p>Leave these fields empty to keep your current password.</p><label for="new-password">New password</label><input id="new-password" name="new_password" type="password" minlength="6" placeholder="At least 6 characters"><label for="confirm-password">Confirm new password</label><input id="confirm-password" name="confirm_password" type="password" minlength="6" placeholder="Re-enter your password"></div>
+                <div class="settings-actions"><a class="outline-button" href="{{ url_for('home') }}">Cancel</a><button class="primary-button" type="submit">Save changes <span>→</span></button></div>
+            </form>
+        </section>
+    </main>
+</body>
+</html>

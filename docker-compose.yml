@@ -1,0 +1,20 @@
+services:
+  web:
+    build: .
+    ports:
+      - "5000:5000"
+    environment:
+      APP_USER: ${APP_USER:-mugesh}
+      APP_PASSWORD: ${APP_PASSWORD:-change-me}
+      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY:-local-development-secret}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      DATABASE_PATH: /app/data/app.db
+    volumes:
+      - ./app/data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s

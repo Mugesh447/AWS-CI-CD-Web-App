@@ -88,6 +88,22 @@ def find_user(username):
         ).fetchone()
 
 
+def find_user_by_login(login):
+    if not login:
+        return None
+    with get_connection() as connection:
+        return connection.execute(
+            """
+            SELECT name, username, email, role, password_hash
+            FROM users
+            WHERE username = ? COLLATE NOCASE OR lower(email) = ?
+            ORDER BY CASE WHEN username = ? COLLATE NOCASE THEN 0 ELSE 1 END
+            LIMIT 1
+            """,
+            (login, login.lower(), login),
+        ).fetchone()
+
+
 def create_user(name, username, email, password):
     with get_connection() as connection:
         connection.execute(

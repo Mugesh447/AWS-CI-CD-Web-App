@@ -3,21 +3,49 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>AWS CI/CD | Authentication</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style-webapp.css') }}">
+    <meta name="description" content="Sign in to the CI and CD deployment web app">
+    <title>Sign in | CI &amp; CD Web App</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style-webapp.css') }}?v=20261011-login-2">
 </head>
 <body class="login-page">
+    <header class="login-topbar">
+        <a class="login-topbar-brand" href="{{ url_for('login') }}" aria-label="AWS CI and CD Web App">
+            <span class="aws-wordmark">aws<span></span></span>
+            <span class="topbar-divider"></span>
+            <span>CI &amp; CD Web App</span>
+        </a>
+        <nav class="login-topbar-steps" aria-label="Pipeline stages">
+            <span>Build</span><i>•</i><span>Test</span><i>•</i><span>Deploy</span><i>•</i><span aria-hidden="true">🚀</span>
+        </nav>
+    </header>
     <main class="login-layout">
         <section class="login-brand-panel">
-            <a class="logo" href="/"><span class="logo-mark">A</span><span>AWS CI/CD<span class="logo-dot">.</span></span></a>
-            <div class="login-quote"><p class="eyebrow">Deployment control center</p><h1>Ship with confidence.</h1><p>One clear view of your builds, services, and production releases.</p></div>
-            <div class="login-proof"><span>✓</span> Secure team workspace <span>✓</span> Live service health</div>
+            <div class="login-quote">
+                <span class="brand-aws">aws<span></span></span>
+                <h1>CI &amp; CD Web App</h1>
+                <p class="login-tagline">Automate <span>•</span> Build <span>•</span> Test <span>•</span> Deploy</p>
+                <p class="login-description">A simple CI/CD pipeline to build, test and deploy your application on AWS.</p>
+            </div>
+            <div class="pipeline-illustration" role="img" aria-label="Code flows through Jenkins and Docker before deployment to AWS">
+                <div class="pipeline-flow">
+                    <div class="pipeline-node"><span class="pipeline-icon code-icon">&lt;/&gt;</span><span>Code</span></div>
+                    <span class="pipeline-arrow" aria-hidden="true">→</span>
+                    <div class="pipeline-node"><span class="pipeline-icon jenkins-icon">J</span><span>Jenkins<small>(CI/CD)</small></span></div>
+                    <span class="pipeline-arrow" aria-hidden="true">→</span>
+                    <div class="pipeline-node"><span class="pipeline-icon docker-icon">▤</span><span>Docker<small>(Build &amp; Push)</small></span></div>
+                    <span class="pipeline-arrow" aria-hidden="true">→</span>
+                    <div class="pipeline-node"><span class="pipeline-icon aws-icon">aws<span></span></span><span>AWS<small>(Deploy)</small></span></div>
+                </div>
+                <div class="cloud-art" aria-hidden="true">
+                    <div class="cloud-shape"><span class="cloud-logo">aws<span></span></span></div>
+                    <div class="server-stack"><span></span><span></span><span></span></div>
+                </div>
+            </div>
         </section>
         <section class="login-card-wrap">
             <div class="login-card">
-                <div class="login-card-heading"><p class="eyebrow">AWS CI/CD Platform</p><h2 id="auth-title">{% if mode == 'register' %}Create your account{% else %}Sign in to your workspace{% endif %}</h2><p id="auth-description">{% if mode == 'register' %}Set up your developer profile for the deployment dashboard.{% else %}Continue to the AWS CI/CD deployment dashboard.{% endif %}</p></div>
-                <div class="auth-tabs" role="tablist"><button type="button" class="auth-tab {% if mode != 'register' %}active{% endif %}" data-mode="login" role="tab">Sign in</button><button type="button" class="auth-tab {% if mode == 'register' %}active{% endif %}" data-mode="register" role="tab">Create account</button></div>
-                {% if mode == 'register' %}<p class="login-helper">Create your account in just 4 quick steps: full name, email, username, and password.</p>{% endif %}
+                <div class="login-card-heading"><h2 id="auth-title">{% if mode == 'register' %}Create Account{% else %}Welcome Back{% endif %}</h2><p id="auth-description">{% if mode == 'register' %}Set up your account for the CI &amp; CD Web App{% else %}Log in to your CI &amp; CD Web App{% endif %}</p></div>
+                {% if mode == 'register' %}<p class="login-helper">Create your account with your name, email, username, and password.</p>{% endif %}
                 {% if registered %}<div class="login-success" role="status">Account created successfully. Please sign in.</div>{% endif %}
                 {% if error %}<div class="login-error" role="alert">{{ error }}</div>{% endif %}
                 <form id="auth-form" method="post" action="{% if mode == 'register' %}{{ url_for('register') }}{% else %}{{ url_for('login') }}{% endif %}">
@@ -25,14 +53,13 @@
                         <label for="name">Full name</label><input id="name" name="name" type="text" placeholder="Enter your full name" autocomplete="name" {% if mode == 'register' %}required{% endif %}>
                         <label for="email">Email address</label><input id="email" name="email" type="email" placeholder="you@example.com" autocomplete="email" {% if mode == 'register' %}required{% endif %}>
                     </div>
-                    <label for="username">Username</label><input id="username" name="username" type="text" value="{{ registered_username }}" placeholder="{% if mode == 'register' %}Choose a username{% else %}Enter your username{% endif %}" autocomplete="username" required autofocus>
-                    <label for="password">Password</label><div class="password-field"><input id="password" name="password" type="password" placeholder="{% if mode == 'register' %}At least 6 characters{% else %}Enter your password{% endif %}" autocomplete="{% if mode == 'register' %}new-password{% else %}current-password{% endif %}" {% if mode == 'register' %}minlength="6"{% endif %} required><button type="button" id="toggle-password" aria-label="Show password"><span class="eye-icon" aria-hidden="true"></span></button></div>
+                    <label for="username">{% if mode == 'register' %}Username{% else %}Email Address or Username{% endif %}</label><div class="auth-input"><span class="field-icon" aria-hidden="true">✉</span><input id="username" name="username" type="text" value="{{ registered_username }}" placeholder="{% if mode == 'register' %}Choose a username{% else %}Enter your email or username{% endif %}" autocomplete="username" required></div>
+                    <label for="password">Password</label><div class="password-field auth-input"><span class="field-icon" aria-hidden="true">♙</span><input id="password" name="password" type="password" placeholder="{% if mode == 'register' %}At least 6 characters{% else %}Enter your password{% endif %}" autocomplete="{% if mode == 'register' %}new-password{% else %}current-password{% endif %}" {% if mode == 'register' %}minlength="6"{% endif %} required><button type="button" id="toggle-password" aria-label="Show password"><span class="eye-icon" aria-hidden="true"></span></button></div>
                     <div class="register-only" {% if mode != 'register' %}hidden{% endif %}><label for="confirm-password">Confirm password</label><input id="confirm-password" name="confirm_password" type="password" placeholder="Re-enter your password" autocomplete="new-password" minlength="6" {% if mode == 'register' %}required{% endif %}></div>
-                    <div class="login-options"><label class="remember"><input type="checkbox" name="remember"> <span>{% if mode == 'register' %}I agree to the workspace terms{% else %}Remember me{% endif %}</span></label><a href="#help">Need help?</a></div>
-                    <button class="primary-button login-submit" type="submit" id="auth-submit">{% if mode == 'register' %}Create account{% else %}Sign in{% endif %} <span>→</span></button>
+                    <div class="login-options"><label class="remember"><input type="checkbox" name="remember"> <span>{% if mode == 'register' %}I agree to the workspace terms{% else %}Remember me{% endif %}</span></label>{% if mode != 'register' %}<span class="password-help">Secure team access</span>{% endif %}</div>
+                    <button class="primary-button login-submit" type="submit" id="auth-submit">{% if mode == 'register' %}Create account{% else %}Login{% endif %}</button>
                 </form>
-                <p class="account-link">{% if mode == 'register' %}Already have an account? <a href="{{ url_for('login') }}">Sign in</a>{% else %}Need a new account? <a href="{{ url_for('register') }}">Create account</a>{% endif %}</p>
-                <p class="login-note">Protected workspace · Session secured</p>
+                <p class="account-link">{% if mode == 'register' %}Already have an account? <a href="{{ url_for('login') }}">Login</a>{% else %}Don't have an account? <a href="{{ url_for('register') }}">Register</a>{% endif %}</p>
             </div>
         </section>
     </main>

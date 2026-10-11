@@ -54,6 +54,12 @@ const diagnosticStatus = document.querySelector('#diagnostic-status');
 const diagnosticTime = document.querySelector('#diagnostic-time');
 const diagnosticPulse = document.querySelector('#diagnostic-pulse');
 const diagnosticGrid = document.querySelector('#diagnostic-grid');
+const refreshMonitoring = document.querySelector('#refresh-monitoring');
+const monitoringResponse = document.querySelector('#monitor-response');
+const monitoringRequests = document.querySelector('#monitor-requests');
+const monitoringUptime = document.querySelector('#monitor-uptime');
+const monitoringNote = document.querySelector('#monitoring-note');
+const statResponse = document.querySelector('#stat-response');
 const addProjectButton = document.querySelector('#add-project-button');
 const projectModal = document.querySelector('#project-modal');
 
@@ -73,10 +79,6 @@ const projectClose = document.querySelector('#project-close');
 const projectCancel = document.querySelector('#project-cancel');
 const projectForm = document.querySelector('#project-form');
 const projectMessage = document.querySelector('#project-message');
-const metricsCanvas = document.querySelector('#metrics-chart');
-const chartTooltip = document.querySelector('#chart-tooltip');
-const chartResponse = document.querySelector('#chart-response');
-const chartRequests = document.querySelector('#chart-requests');
 let progressTimer;
 let selectedDeploymentId = null;
 let autoRefreshTimer;
@@ -104,6 +106,7 @@ if (!refreshButton) {
         });
     });
     authForm.addEventListener('submit', async (event) => {
+        if (authForm.action.endsWith('/register')) return;
         event.preventDefault();
         authSubmit.disabled = true;
         authSubmit.innerHTML = 'Signing in... <span>◌</span>';
@@ -115,10 +118,10 @@ if (!refreshButton) {
         const error = document.querySelector('.login-error') || document.createElement('div');
         error.className = 'login-error';
         error.setAttribute('role', 'alert');
-        error.textContent = 'Username or password is incorrect. Try again.';
+        error.textContent = 'Email, username or password is incorrect. Try again.';
         if (!error.parentElement) authForm.parentElement.insertBefore(error, authForm);
         authSubmit.disabled = false;
-        authSubmit.innerHTML = 'Sign in <span>→</span>';
+        authSubmit.textContent = 'Login';
     });
 } else if (localStorage.getItem('dashboard-theme') === 'dark') {
     document.body.classList.add('dark');
@@ -252,47 +255,31 @@ document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') closeReleaseModal();
 });
 
-const metricData = {
-    '24H': { response: [118, 132, 126, 145, 139, 151, 142, 136, 148, 142], requests: [55, 61, 58, 67, 63, 71, 68, 74, 70, 78], average: '142ms', total: '24.8k' },
-    '7D': { response: [152, 147, 141, 138, 145, 139, 142], requests: [62, 68, 66, 74, 71, 79, 83], average: '143ms', total: '168.4k' },
-    '30D': { response: [176, 162, 158, 151, 146, 143, 142, 139, 142, 142], requests: [48, 55, 61, 58, 67, 70, 73, 77, 81, 86], average: '149ms', total: '712.6k' }
-};
-let activeRange = '24H';
-
-function drawChart() {
-    const rect = metricsCanvas.getBoundingClientRect();
-    const scale = window.devicePixelRatio || 1;
-    metricsCanvas.width = rect.width * scale;
-    metricsCanvas.height = rect.height * scale;
-    const context = metricsCanvas.getContext('2d');
-    context.scale(scale, scale);
-    const width = rect.width;
-    const height = rect.height;
-    const padding = { top: 12, right: 14, bottom: 25, left: 30 };
-    const data = metricData[activeRange];
-    const allValues = [...data.response, ...data.requests];
-    const min = Math.min(...allValues) - 10;
-    const max = Math.max(...allValues) + 10;
-    const x = (index) => padding.left + index * ((width - padding.left - padding.right) / (data.response.length - 1));
-    const y = (value) => height - padding.bottom - ((value - min) / (max - min)) * (height - padding.top - padding.bottom);
-    context.strokeStyle = '#e9edf3';
-    context.lineWidth = 1;
-    [0, .33, .66, 1].forEach((line) => { const lineY = padding.top + line * (height - padding.top - padding.bottom); context.beginPath(); context.moveTo(padding.left, lineY); context.lineTo(width - padding.right, lineY); context.stroke(); });
-    function plot(values, color) { context.beginPath(); values.forEach((value, index) => index ? context.lineTo(x(index), y(value)) : context.moveTo(x(index), y(value))); context.strokeStyle = color; context.lineWidth = 2.5; context.stroke(); values.forEach((value, index) => { context.beginPath(); context.fillStyle = '#fff'; context.arc(x(index), y(value), 3.5, 0, Math.PI * 2); context.fill(); context.strokeStyle = color; context.lineWidth = 2; context.stroke(); }); }
-    plot(data.response, '#3667dc');
-    plot(data.requests, '#11b5c8');
-    context.fillStyle = '#9aa5b4'; context.font = '10px Trebuchet MS'; context.fillText(activeRange === '24H' ? 'Now' : 'Today', width - 35, height - 6); context.fillText(activeRange === '30D' ? '30 days ago' : activeRange === '7D' ? '7 days ago' : '24 hours ago', padding.left, height - 6);
-    chartResponse.textContent = data.average;
-    chartRequests.textContent = data.total;
+function formatUptime(seconds) {
+    const totalSeconds = Math.floor(seconds);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    return hours ? `${hours}h ${minutes}m` : `${minutes}m ${totalSeconds % 60}s`;
 }
 
-document.querySelectorAll('.chart-range').forEach((button) => {
-    button.addEventListener('click', () => { activeRange = button.dataset.range; document.querySelectorAll('.chart-range').forEach((item) => item.classList.toggle('active', item === button)); drawChart(); });
-});
-metricsCanvas.addEventListener('mousemove', (event) => { const data = metricData[activeRange]; const index = Math.max(0, Math.min(data.response.length - 1, Math.round((event.offsetX - 30) / ((metricsCanvas.clientWidth - 44) / (data.response.length - 1))))); chartTooltip.textContent = `${data.response[index]}ms response · ${data.requests[index]}k requests`; chartTooltip.style.display = 'block'; chartTooltip.style.left = `${Math.min(event.offsetX + 12, metricsCanvas.clientWidth - 175)}px`; chartTooltip.style.top = `${Math.max(event.offsetY - 35, 0)}px`; });
-metricsCanvas.addEventListener('mouseleave', () => { chartTooltip.style.display = 'none'; });
-window.addEventListener('resize', drawChart);
-drawChart();
+async function loadMonitoring() {
+    try {
+        const response = await fetch('/api/monitoring');
+        if (!response.ok) throw new Error(`Monitoring request failed: ${response.status}`);
+        const data = await response.json();
+        monitoringResponse.textContent = `${data.average_response_ms}ms`;
+        statResponse.textContent = `${data.average_response_ms}ms`;
+        monitoringRequests.textContent = data.request_count.toLocaleString();
+        monitoringUptime.textContent = formatUptime(data.uptime_seconds);
+        monitoringNote.textContent = `Sampled ${new Date(data.sampled_at).toLocaleTimeString()} · ${data.scope}; counters reset when this worker restarts.`;
+    } catch (error) {
+        monitoringNote.textContent = `Live monitoring data is unavailable: ${error.message}`;
+    }
+}
+
+refreshMonitoring.addEventListener('click', loadMonitoring);
+loadMonitoring();
+setInterval(loadMonitoring, 15000);
 
 function closeNewDeployment() {
     newDeploymentModal.hidden = true;
@@ -429,13 +416,33 @@ async function loadDiagnostics() {
     runDiagnostics.textContent = 'Checking...';
     try {
         const response = await fetch('/api/diagnostics');
+        if (!response.ok) throw new Error(`Diagnostics request failed: ${response.status}`);
         const data = await response.json();
-        diagnosticStatus.textContent = data.status === 'healthy' ? 'All systems operational' : 'Attention required';
+        diagnosticStatus.textContent = data.status === 'healthy'
+            ? 'Runtime and security checks passed'
+            : data.status === 'degraded'
+                ? 'Runtime check failed'
+                : 'Security or runtime checks need attention';
         diagnosticPulse.classList.toggle('diagnostic-warning', data.status !== 'healthy');
-        diagnosticGrid.innerHTML = data.checks.map((check) => `<div><span>✓</span><label>${check.name}<b class="${check.status === 'Operational' ? 'check-ok' : 'check-warning'}">${check.status}</b></label></div>`).join('');
-        diagnosticTime.textContent = `Checked ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+        diagnosticGrid.replaceChildren(...data.checks.map((check) => {
+            const card = document.createElement('div');
+            const icon = document.createElement('span');
+            const label = document.createElement('label');
+            const status = document.createElement('b');
+            const detail = document.createElement('small');
+            icon.textContent = check.status === 'Operational' ? '✓' : check.status === 'Warning' ? '!' : '×';
+            label.append(document.createTextNode(check.name));
+            status.textContent = check.status;
+            status.className = check.status === 'Operational' ? 'check-ok' : 'check-warning';
+            detail.textContent = check.detail;
+            card.dataset.category = check.category;
+            label.append(status, detail);
+            card.append(icon, label);
+            return card;
+        }));
+        diagnosticTime.textContent = `Checked ${new Date(data.checked_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })} · security: ${data.security_status === 'passed' ? 'passed' : 'needs attention'}`;
     } catch (error) {
-        diagnosticStatus.textContent = 'Diagnostics unavailable';
+        diagnosticStatus.textContent = `Diagnostics unavailable: ${error.message}`;
         diagnosticPulse.classList.add('diagnostic-warning');
     } finally {
         runDiagnostics.disabled = false;

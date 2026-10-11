@@ -3,23 +3,25 @@ import os
 import re
 import secrets
 import smtplib
+import sqlite3
+import threading
 import time
 import uuid
 from email.message import EmailMessage
 
-from flask import Flask, jsonify, redirect, render_template, request, session, url_for
+from flask import Flask, g, jsonify, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash
 
 try:
     from .database import create_deployment as save_deployment
-    from .database import create_user, find_deployment, find_user, username_exists
+    from .database import DATABASE_PATH, create_user, find_deployment, find_user, find_user_by_login, get_connection, username_exists
     from .database import list_deployments as get_user_deployments
     from .database import create_project, list_projects
     from .database import list_users
     from .database import update_deployment_status, update_user_profile
 except ImportError:
     from database import create_deployment as save_deployment
-    from database import create_user, find_deployment, find_user, username_exists
+    from database import DATABASE_PATH, create_user, find_deployment, find_user, find_user_by_login, get_connection, username_exists
     from database import list_deployments as get_user_deployments
     from database import create_project, list_projects
     from database import list_users
@@ -33,8 +35,10 @@ app.config.update(
     SESSION_COOKIE_SECURE=os.environ.get("COOKIE_SECURE", "false").lower() == "true",
     PERMANENT_SESSION_LIFETIME=3600,
 )
+APP_STARTED_AT = time.perf_counter()
+REQUEST_METRICS = {"count": 0, "duration_ms_total": 0.0}
+REQUEST_METRICS_LOCK = threading.Lock()
 LOGIN_USER = os.environ.get("APP_USER", "mugesh")
-LOGIN_PASSWORD = os.environ.get("APP_PASSWORD", "change-me")
 KNOWN_RELEASES = {
     "8f3a2c1": "v1.4.2",
     "6b91d04": "v1.4.1",
@@ -49,6 +53,21 @@ SERVICE_LOGS = [
     {"time": "10:39:08", "level": "INFO", "message": "GET /api/status 200 18ms"},
     {"time": "10:37:44", "level": "ERROR", "message": "Retrying ECR image metadata request"},
 ]
+
+@app.before_request
+def start_request_timer():
+    g.request_started_at = time.perf_counter()
+
+
+@app.after_request
+def record_request_metrics(response):
+    started_at = getattr(g, "request_started_at", None)
+    if started_at is not None:
+        duration_ms = (time.perf_counter() - started_at) * 1000
+        with REQUEST_METRICS_LOCK:
+            REQUEST_METRICS["count"] += 1
+            REQUEST_METRICS["duration_ms_total"] += duration_ms
+    return response
 
 
 @app.route("/")
@@ -77,12 +96,12 @@ def home():
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        username = request.form.get("username", "").strip().lower()
+        login = request.form.get("username", "").strip()
         password = request.form.get("password", "")
-        user = find_user(username)
+        user = find_user_by_login(login)
         if user and check_password_hash(user["password_hash"], password):
-            session["user"] = username
-            session["display_name"] = "CloudEngineeer"
+            session["user"] = user["username"]
+            session["display_name"] = user["name"]
             session["user_email"] = user["email"]
             session["role"] = user["role"]
             session.permanent = request.form.get("remember") == "on"
@@ -91,7 +110,7 @@ def login():
             "login.html",
             error="Username or password is incorrect. Try again or create a new account.",
             mode="login",
-            registered_username=username,
+            registered_username=login,
         ), 401
 
     return render_template(
@@ -386,18 +405,95 @@ def costs():
 def diagnostics():
     if "user" not in session:
         return jsonify(error="authentication required"), 401
-    database_ok = True
+
+    database_ok = False
+    seed_user = None
     try:
-        find_user(session["user"])
-    except Exception:
-        database_ok = False
+        with get_connection() as connection:
+            connection.execute("SELECT 1").fetchone()
+        seed_user = find_user(LOGIN_USER)
+        database_ok = DATABASE_PATH.exists()
+    except sqlite3.Error:
+        app.logger.exception("Database diagnostics check failed")
+
+    configured_secret = os.environ.get("FLASK_SECRET_KEY", "")
+    secret_configured = bool(
+        len(configured_secret) >= 32
+        and configured_secret not in {"local-development-secret", "change-me"}
+    )
+    secure_cookie_enabled = app.config["SESSION_COOKIE_SECURE"]
+    default_password_in_use = seed_user is None or check_password_hash(
+        seed_user["password_hash"], "change-me"
+    )
     checks = [
-        {"name": "Application service", "status": "Operational"},
-        {"name": "SQLite database", "status": "Operational" if database_ok else "Degraded"},
-        {"name": "Deployment engine", "status": "Operational"},
-        {"name": "Container health", "status": "Operational"},
+        {
+            "name": "Application service",
+            "category": "runtime",
+            "status": "Operational",
+            "detail": "Flask request handler is responding.",
+        },
+        {
+            "name": "SQLite database",
+            "category": "runtime",
+            "status": "Operational" if database_ok else "Failed",
+            "detail": "Database connection and read query succeeded." if database_ok else "Database connection or read query failed.",
+        },
+        {
+            "name": "Debug mode",
+            "category": "security",
+            "status": "Warning" if app.debug else "Operational",
+            "detail": "Disable debug mode before deployment." if app.debug else "Debug mode is disabled.",
+        },
+        {
+            "name": "Session signing key",
+            "category": "security",
+            "status": "Operational" if secret_configured else "Warning",
+            "detail": "A non-default signing key with at least 32 characters is configured." if secret_configured else "Set a stable, non-default FLASK_SECRET_KEY with at least 32 characters.",
+        },
+        {
+            "name": "HTTPS-only session cookie",
+            "category": "security",
+            "status": "Operational" if secure_cookie_enabled else "Warning",
+            "detail": "Session cookies are restricted to HTTPS." if secure_cookie_enabled else "Enable COOKIE_SECURE=true when serving over HTTPS.",
+        },
+        {
+            "name": "Default account password",
+            "category": "security",
+            "status": "Warning" if default_password_in_use else "Operational",
+            "detail": "Replace the default seed account password before deployment." if default_password_in_use else "The seed account password is not the development default.",
+        },
     ]
-    return jsonify(status="healthy" if database_ok else "degraded", checks=checks), 200
+    has_failure = any(check["status"] == "Failed" for check in checks)
+    has_warning = any(check["status"] == "Warning" for check in checks)
+    security_status = "needs_attention" if any(
+        check["category"] == "security" and check["status"] != "Operational"
+        for check in checks
+    ) else "passed"
+    overall_status = "degraded" if has_failure else "attention" if has_warning else "healthy"
+    return jsonify(
+        status=overall_status,
+        security_status=security_status,
+        checks=checks,
+        checked_at=datetime.now(timezone.utc).isoformat(),
+    ), 200
+
+
+@app.route("/api/monitoring")
+def monitoring():
+    if "user" not in session:
+        return jsonify(error="authentication required"), 401
+
+    with REQUEST_METRICS_LOCK:
+        request_count = REQUEST_METRICS["count"]
+        duration_ms_total = REQUEST_METRICS["duration_ms_total"]
+
+    return jsonify(
+        scope="this application worker process",
+        uptime_seconds=round(time.perf_counter() - APP_STARTED_AT, 1),
+        request_count=request_count,
+        average_response_ms=round(duration_ms_total / request_count, 2) if request_count else 0,
+        sampled_at=datetime.now(timezone.utc).isoformat(),
+    ), 200
 
 
 @app.route("/api/github/webhook", methods=["POST"])
@@ -460,6 +556,6 @@ def projects():
 if __name__ == "__main__":
     app.run(
         host="0.0.0.0",
-        port=5000,
+        port=5001,
         debug=False
     )

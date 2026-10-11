@@ -132,8 +132,46 @@ def test_diagnostics_api_returns_all_checks():
     response = authenticated_client().get("/api/diagnostics")
 
     assert response.status_code == 200
-    assert response.json["status"] == "healthy"
-    assert len(response.json["checks"]) == 4
+    assert response.json["status"] in {"healthy", "attention", "degraded"}
+    checks = {check["name"]: check for check in response.json["checks"]}
+    assert checks["SQLite database"]["status"] == "Operational"
+    assert checks["Debug mode"]["status"] == "Operational"
+    assert checks["Session signing key"]["status"] in {"Operational", "Warning"}
+    assert response.json["security_status"] in {"passed", "needs_attention"}
+    assert app.secret_key not in str(response.json)
+
+
+def test_diagnostics_reports_unsafe_debug_and_cookie_settings(monkeypatch):
+    monkeypatch.setattr(app, "debug", True)
+    monkeypatch.setitem(app.config, "SESSION_COOKIE_SECURE", False)
+
+    response = authenticated_client().get("/api/diagnostics")
+    checks = {check["name"]: check for check in response.json["checks"]}
+
+    assert response.status_code == 200
+    assert checks["Debug mode"]["status"] == "Warning"
+    assert checks["HTTPS-only session cookie"]["status"] == "Warning"
+    assert response.json["security_status"] == "needs_attention"
+
+
+def test_monitoring_api_reports_measured_process_metrics():
+    client = authenticated_client()
+    first = client.get("/api/monitoring")
+    client.get("/health")
+    second = client.get("/api/monitoring")
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert second.json["scope"] == "this application worker process"
+    assert second.json["request_count"] >= first.json["request_count"] + 2
+    assert second.json["average_response_ms"] >= 0
+    assert second.json["uptime_seconds"] > 0
+
+
+def test_monitoring_api_requires_authentication():
+    response = app.test_client().get("/api/monitoring")
+
+    assert response.status_code == 401
 
 
 def test_settings_page_requires_login():
@@ -287,6 +325,38 @@ def test_password_is_hashed_and_session_is_secure():
     assert "HttpOnly" in cookie
     assert "SameSite=Lax" in cookie
 
+
+def test_login_accepts_email_address():
+    client = app.test_client()
+
+    response = client.post(
+        "/login",
+        data={"username": "MUGESH@example.com", "password": "change-me"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/")
+    assert client.get("/", follow_redirects=False).status_code == 200
+
+
+def test_login_rejects_blank_identifier():
+    response = app.test_client().post(
+        "/login",
+        data={"username": "", "password": "change-me"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 401
+
+
+def test_login_page_does_not_offer_github_signin():
+    response = app.test_client().get("/login")
+
+    assert response.status_code == 200
+    assert b"Continue with GitHub" not in response.data
+    assert b"GitHub login unavailable" not in response.data
+    assert app.test_client().get("/auth/github").status_code == 404
 
 def test_logout_clears_dashboard_session():
     client = authenticated_client()

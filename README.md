@@ -33,17 +33,40 @@ pytest -q
 python app/app.py
 ```
 
-Open `http://localhost:5000` and check `http://localhost:5000/health`.
+Open `http://localhost:5001` and check `http://localhost:5001/health`.
 
 The dashboard opens with a login screen. Create an account from the
 authentication screen, then use that username and password to sign in. Set
-`APP_USER`, `APP_PASSWORD`, and `FLASK_SECRET_KEY` environment variables before deployment. SQLite stores users
-and deployment records in `app/data/app.db`; Docker Compose mounts that folder
-so the data survives container restarts.
+`APP_USER`, `APP_PASSWORD`, and `FLASK_SECRET_KEY` environment variables before
+deployment. `APP_PASSWORD` seeds the admin password when the database is first
+created. If `app/data/app.db` already exists, change the account password from
+Profile settings; changing the environment variable does not rewrite an
+existing password hash. SQLite stores users and deployment records in that
+database, and Docker Compose mounts the folder so data survives container
+restarts.
 
 Passwords are stored with Werkzeug's salted password hashing and are never
 stored as plaintext. For HTTPS production deployments, set `COOKIE_SECURE=true`
 so the session cookie is sent only over HTTPS.
+
+## Runtime monitoring and security checks
+
+The dashboard's **Live application monitoring** panel and authenticated
+`/api/monitoring` endpoint report request count, average response time, and
+uptime measured inside the current Flask worker. These in-memory counters reset
+when that worker restarts; with multiple workers, they are per-worker values
+and are not an aggregate or a substitute for CloudWatch metrics.
+
+The **Runtime and security checks** panel and authenticated `/api/diagnostics`
+endpoint check database connectivity, Flask debug mode, session signing-key
+configuration, HTTPS-only session cookies, and use of the default seed
+password. Warnings are actionable configuration reminders, not a penetration
+test. Set a stable, non-default `FLASK_SECRET_KEY` of at least 32 characters,
+replace the default `APP_PASSWORD`, and set `COOKIE_SECURE=true` when the app
+is served over HTTPS.
+
+AWS service health and billing values elsewhere in the dashboard are sample
+dashboard data; this local application does not query ECS, ECR, or CloudWatch.
 
 ## Run with Docker
 

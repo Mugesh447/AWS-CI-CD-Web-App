@@ -2,7 +2,7 @@ services:
   web:
     build: .
     ports:
-      - "5000:5000"
+      - "5001:5000"
     environment:
       APP_USER: ${APP_USER:-mugesh}
       APP_PASSWORD: ${APP_PASSWORD:-change-me}
